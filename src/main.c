@@ -157,7 +157,7 @@ int main()
     // Falling-Edge Triggered INT0 - This will depend on if you
     // are using a pullup resistor or a pulldown resistor on your
     // button and port
-    MCUCR |= 1<<ISC01;
+    // MCUCR |= 1<<ISC01;
 
     //Which Interrupt pin you need to enable
     //can be found in the datasheet, look at the pin
@@ -165,6 +165,13 @@ int main()
     //track down INT0 - which is PORTD pin 0.
     //This needs to be an input.
     DDRD &= 0;
+
+
+
+    //================= LED =================//
+
+    DDRA ^= 0xff;
+    PORTA ^= 0x00;
 
 
     sei();//allow interrupts
@@ -185,12 +192,14 @@ void tick() {
         case 1: //WARTEN
             timer++;
             if(timer > 2000) {
+                PORTA ^= 0xff;
                 step = 2;
             }
             break;
         case 3: //WARTEN
             timer++;
             if(timer > 2000) {
+                PORTA ^= 0x00;
                 step = 0;
             }
             break;
