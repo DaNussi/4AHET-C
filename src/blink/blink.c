@@ -1,14 +1,19 @@
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <util/delay.h>
- 
+
+void tick();
+void button();
+
+
 /*-------------------------------------------
  * Interruptvektoren
  * ------------------------------------------ */
+
 // External Interrupt Request 0   	_VECTOR(1)
-ISR(INT0_vect) { }
+ISR(INT0_vect) {
+        button();
+}
 // External Interrupt Request 1   	_VECTOR(2)
 ISR(INT1_vect) { }
 // External Interrupt Request 1   	_VECTOR(3)
@@ -78,7 +83,9 @@ ISR(TIMER3_OVF_vect) { }
 // Timer4 Capture Event  			_VECTOR(41)
 ISR(TIMER4_CAPT_vect) { }
 // Timer4 Compare A  				_VECTOR(42)
-ISR(TIMER4_COMPA_vect) { }
+ISR(TIMER4_COMPA_vect) {
+        tick();
+}
 // Timer4 Compare B  				_VECTOR(43)
 ISR(TIMER4_COMPB_vect) { }
 // Timer4 Compare C  				_VECTOR(44)
@@ -121,66 +128,103 @@ ISR(USART3_UDRE_vect) { }
 ISR(USART3_TX_vect) { }
 
 
-void setZahl(int nr) {
-	unsigned char e = (nr%10);
-	unsigned char z = (nr/10) % 10;
-	unsigned char h = (nr/100) % 10;
-	unsigned char t = (nr/1000) % 10;
 
-	PORTC = z<<4 | e;
-	PORTA ^= 1<<1;
-	PORTA ^= 1<<1;
-	PORTA |= 1<<1;
-	PORTA &= ~(1<<1);
+int main()
+{
 
-	PORTC = t<<4 | h;
-	PORTA |= 1<<0;
-	PORTA &= ~(1<<0);
+    cli();//stop interrupts
+
+    //================= BUTTON =================//
+
+    //set timer4 interrupt at 1Hz
+    TCCR4A = 0;// set entire TCCR1A register to 0
+    TCCR4B = 0;// same for TCCR1B
+    TCNT4  = 0;//initialize counter value to 0
+    // set compare match register for 1hz increments
+    OCR4A = 15624/1000;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+    //OCR4A = 20;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+    // turn on CTC mode
+    TCCR4B |= (1 << WGM12);
+    // Set CS12 and CS10 bits for 1024 prescaler
+    TCCR4B |= (1 << CS12) | (1 << CS10);
+    // enable timer compare interrupt
+    TIMSK4 |= (1 << OCIE4A);
+
+
+    //================= BUTTON =================//
+
+    // Enable INT0 External Interrupt
+    EIMSK |= 1<<INT0;
+    // Falling-Edge Triggered INT0 - This will depend on if you
+    // are using a pullup resistor or a pulldown resistor on your
+    // button and port
+    MCUCR |= 1<<ISC01;
+
+    //Which Interrupt pin you need to enable
+    //can be found in the datasheet, look at the pin
+    //configuration, usually within the first 5 pages
+    //track down INT0 - which is PORTD pin 0.
+    //This needs to be an input.
+    DDRD &= 0x00;
+
+
+
+    //================= LED =================//
+
+    DDRA = 0xff;
+    PORTA = 0x00;
+
+
+    sei();//allow interrupts
+
+
+
+
+    while(1) {};
 }
 
+volatile int timer = 0;
+volatile int step = 0;
 
+void tick() {
+    timer++;
 
+    switch (step) {
+        case 1: //WARTEN
+            timer++;
+            if(timer > 2000) {
+                PORTA = 0xff;
+                step = 2;
+            }
+            break;
+        case 3: //WARTEN
+            timer++;
+            if(timer > 2000) {
+                PORTA = 0x00;
+                step = 0;
+            }
+            break;
+        default: //RESET TIMER
+            timer = 0;
+            break;
+    }
 
-int main() 
-{   
-	
-	DDRA = 0x03;
-	PORTA = (1<<7);
-	DDRC = 0xFF;
-	PORTC = 0;
-	setZahl(0);
+}
 
-    unsigned char layout [4][4] = {'C',0,'=','+',1,2,3,'-',4,5,6,'*',7,8,9,'%'};
-
-
-    //Port B 4-7 Output
-    DDRB |= (1<<4) | (1<<5) | (1<<6) | (1<<7);
-    PORTB = 0xFF;
-
-    DDRC = 0xFF;
-	DDRA = 0xFF;
-	DDRD = 0x00;
-
-	unsigned char oldNumb = 0;
-
-	while(1) {
-
-        for (int row = 0; row != 4; row++)
-        {   
-            PORTB = 0xFF & ~(1<<(row+4));
-
-            for ( int col = 0; col < 4; col++)
-            {
-                if (!(PINB & (1<<col)))
-                {
-                    unsigned char numb = layout[row][col];
-                    
-					setZahl(numb);
-                    
-                }
-                
-            }   
-        }
-	}
+void button() {
+    switch (step) {
+        case 0: //AUS
+            step = 1;
+            break;
+        case 1: //WARTEN
+            step = 0;
+            break;
+        case 2: //EIN
+            step = 3;
+            break;
+        case 3: //WARTEN
+            step = 2;
+            break;
+    }
 
 }

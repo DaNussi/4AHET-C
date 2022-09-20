@@ -142,6 +142,7 @@ int main()
     TCNT4  = 0;//initialize counter value to 0
     // set compare match register for 1hz increments
     OCR4A = 15624/1000;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+    //OCR4A = 20;// = (16*10^6) / (1*1024) - 1 (must be <65536)
     // turn on CTC mode
     TCCR4B |= (1 << WGM12);
     // Set CS12 and CS10 bits for 1024 prescaler
@@ -157,21 +158,21 @@ int main()
     // Falling-Edge Triggered INT0 - This will depend on if you
     // are using a pullup resistor or a pulldown resistor on your
     // button and port
-    // MCUCR |= 1<<ISC01;
+    MCUCR |= 1<<ISC01;
 
     //Which Interrupt pin you need to enable
     //can be found in the datasheet, look at the pin
     //configuration, usually within the first 5 pages
     //track down INT0 - which is PORTD pin 0.
     //This needs to be an input.
-    DDRD &= 0;
+    DDRD &= 0x00;
 
 
 
     //================= LED =================//
 
-    DDRA ^= 0xff;
-    PORTA ^= 0x00;
+    DDRA = 0xff;
+    PORTA = 0x00;
 
 
     sei();//allow interrupts
@@ -179,7 +180,7 @@ int main()
 
 
 
-    while(1) { };
+    while(1) {};
 }
 
 volatile int timer = 0;
@@ -192,14 +193,14 @@ void tick() {
         case 1: //WARTEN
             timer++;
             if(timer > 2000) {
-                PORTA ^= 0xff;
+                PORTA = 0xff;
                 step = 2;
             }
             break;
         case 3: //WARTEN
             timer++;
             if(timer > 2000) {
-                PORTA ^= 0x00;
+                PORTA = 0x00;
                 step = 0;
             }
             break;
@@ -211,8 +212,6 @@ void tick() {
 }
 
 void button() {
-
-
     switch (step) {
         case 0: //AUS
             step = 1;
