@@ -2,9 +2,9 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-void tick();
-void button();
 
+volatile int timer = 0;
+volatile int step = 0;
 
 /*-------------------------------------------
  * Interruptvektoren
@@ -12,7 +12,10 @@ void button();
 
 // External Interrupt Request 0   	_VECTOR(1)
 ISR(INT0_vect) {
-    button();
+
+
+
+
 }
 // External Interrupt Request 1   	_VECTOR(2)
 ISR(INT1_vect) { }
@@ -23,7 +26,18 @@ ISR(INT3_vect) { }
 // External Interrupt Request 1   	_VECTOR(5)
 ISR(INT4_vect) { }
 // External Interrupt Request 1   	_VECTOR(6)
-ISR(INT5_vect) { }
+ISR(INT5_vect) {
+
+
+    switch (step) {
+        case 0: //AUS
+            step = 1;
+            break;
+        case 2: //EIN
+            step = 3;
+            break;
+    }
+}
 // External Interrupt Request 1   	_VECTOR(7)
 ISR(INT6_vect) { }
 // External Interrupt Request 1   	_VECTOR(8)
@@ -49,11 +63,38 @@ ISR(TWI_vect) { }
 // Store Program Memory Read        _VECTOR(40)
 ISR (SPM_READY_vect) { }
 // Timer0 Compare A  				_VECTOR(21)
-ISR(TIMER0_COMPA_vect) { }
+ISR(TIMER0_COMPA_vect) {
+
+
+
+}
 // Timer0 Compare B  				_VECTOR(22)
 ISR(TIMER0_COMPB_vect) { }
 // Timer0 Overflow  				_VECTOR(23)
-ISR(TIMER0_OVF_vect) { }
+ISR(TIMER0_OVF_vect) {
+
+
+    switch (step) {
+        case 1: //WARTEN
+            timer++;
+            OCR0A = (timer*255l)/400l;
+            if(timer > 400) {
+                step = 2;
+            }
+            break;
+        case 3: //WARTEN
+            timer++;
+            OCR0A = 255l-(timer*255l)/400l;
+            if(timer > 400) {
+                step = 0;
+            }
+            break;
+        default: //RESET TIMER
+            timer = 0;
+            break;
+    }
+
+}
 // Timer1 Capture Event  			_VECTOR(16)
 ISR(TIMER1_CAPT_vect) { }
 // Timer1 Compare A  				_VECTOR(17)
@@ -84,7 +125,7 @@ ISR(TIMER3_OVF_vect) { }
 ISR(TIMER4_CAPT_vect) { }
 // Timer4 Compare A  				_VECTOR(42)
 ISR(TIMER4_COMPA_vect) {
-    tick();
+
 }
 // Timer4 Compare B  				_VECTOR(43)
 ISR(TIMER4_COMPB_vect) { }
@@ -132,99 +173,40 @@ ISR(USART3_TX_vect) { }
 int main()
 {
 
-    cli();//stop interrupts
 
-    //================= BUTTON =================//
+    //================= TIMER =================//
 
-    //set timer4 interrupt at 1Hz
-    TCCR4A = 0;// set entire TCCR1A register to 0
-    TCCR4B = 0;// same for TCCR1B
-    TCNT4  = 0;//initialize counter value to 0
-    // set compare match register for 1hz increments
-    OCR4A = 15624/1000;// = (16*10^6) / (1*1024) - 1 (must be <65536)
-    //OCR4A = 20;// = (16*10^6) / (1*1024) - 1 (must be <65536)
-    // turn on CTC mode
-    TCCR4B |= (1 << WGM12);
-    // Set CS12 and CS10 bits for 1024 prescaler
-    TCCR4B |= (1 << CS12) | (1 << CS10);
-    // enable timer compare interrupt
-    TIMSK4 |= (1 << OCIE4A);
+    TCCR0A = (1<<COM0A1)|(1<<WGM02)|(1<<WGM01)|(1<<WGM00);
+    TCCR0B = 1<<CS02;
+    TIMSK0 = 1<<TOIE0;
+    OCR0A = 255;
 
 
     //================= BUTTON =================//
 
-    // Enable INT0 External Interrupt
-    EIMSK |= 1<<INT0;
-    // Falling-Edge Triggered INT0 - This will depend on if you
-    // are using a pullup resistor or a pulldown resistor on your
-    // button and port
-    MCUCR |= 1<<ISC01;
-
-    //Which Interrupt pin you need to enable
-    //can be found in the datasheet, look at the pin
-    //configuration, usually within the first 5 pages
-    //track down INT0 - which is PORTD pin 0.
-    //This needs to be an input.
-    DDRD &= 0x00;
+    EICRB = 1 << ISC51 | 1<< ISC50;
+    EIMSK = 1 << INT5;
 
 
 
     //================= LED =================//
 
+    DDRB = 0xff;
+    TCCR1A = (1<<WGM10) | (1<<COM1A1);
+    TCCR1B = (1<<CS11) | (1<<CS10);
+    OCR1A = 128-1;
+
     DDRA = 0xff;
     PORTA = 0x00;
 
 
-    sei();//allow interrupts
+    sei();
 
 
 
 
-    while(1) {};
+    while(1) { };
 }
 
-volatile int timer = 0;
-volatile int step = 0;
 
-void tick() {
-    timer++;
 
-    switch (step) {
-        case 1: //WARTEN
-            timer++;
-            if(timer > 2000) {
-                PORTA = 0xff;
-                step = 2;
-            }
-            break;
-        case 3: //WARTEN
-            timer++;
-            if(timer > 2000) {
-                PORTA = 0x00;
-                step = 0;
-            }
-            break;
-        default: //RESET TIMER
-            timer = 0;
-            break;
-    }
-
-}
-
-void button() {
-    switch (step) {
-        case 0: //AUS
-            step = 1;
-            break;
-        case 1: //WARTEN
-            step = 0;
-            break;
-        case 2: //EIN
-            step = 3;
-            break;
-        case 3: //WARTEN
-            step = 2;
-            break;
-    }
-
-}
