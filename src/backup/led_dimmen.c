@@ -1,15 +1,22 @@
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <avr/delay.h>
-#include <lib/uart.h>
+
+
+volatile int timer = 0;
+volatile int step = 0;
 
 /*-------------------------------------------
  * Interruptvektoren
  * ------------------------------------------ */
+
 // External Interrupt Request 0   	_VECTOR(1)
-ISR(INT0_vect) { }
+ISR(INT0_vect) {
+
+
+
+
+}
 // External Interrupt Request 1   	_VECTOR(2)
 ISR(INT1_vect) { }
 // External Interrupt Request 1   	_VECTOR(3)
@@ -19,7 +26,18 @@ ISR(INT3_vect) { }
 // External Interrupt Request 1   	_VECTOR(5)
 ISR(INT4_vect) { }
 // External Interrupt Request 1   	_VECTOR(6)
-ISR(INT5_vect) { }
+ISR(INT5_vect) {
+
+
+        switch (step) {
+            case 0: //AUS
+                step = 1;
+            break;
+            case 2: //EIN
+                step = 3;
+            break;
+        }
+}
 // External Interrupt Request 1   	_VECTOR(7)
 ISR(INT6_vect) { }
 // External Interrupt Request 1   	_VECTOR(8)
@@ -45,11 +63,38 @@ ISR(TWI_vect) { }
 // Store Program Memory Read        _VECTOR(40)
 ISR (SPM_READY_vect) { }
 // Timer0 Compare A  				_VECTOR(21)
-ISR(TIMER0_COMPA_vect) { }
+ISR(TIMER0_COMPA_vect) {
+
+
+
+}
 // Timer0 Compare B  				_VECTOR(22)
 ISR(TIMER0_COMPB_vect) { }
 // Timer0 Overflow  				_VECTOR(23)
-ISR(TIMER0_OVF_vect) { }
+ISR(TIMER0_OVF_vect) {
+
+
+        switch (step) {
+            case 1: //WARTEN
+                timer++;
+            OCR0A = (timer*255l)/400l;
+            if(timer > 400) {
+                step = 2;
+            }
+            break;
+            case 3: //WARTEN
+                timer++;
+            OCR0A = 255l-(timer*255l)/400l;
+            if(timer > 400) {
+                step = 0;
+            }
+            break;
+            default: //RESET TIMER
+                timer = 0;
+            break;
+        }
+
+}
 // Timer1 Capture Event  			_VECTOR(16)
 ISR(TIMER1_CAPT_vect) { }
 // Timer1 Compare A  				_VECTOR(17)
@@ -126,14 +171,40 @@ ISR(USART3_TX_vect) { }
 int main()
 {
 
-    uart_init_default();
+
+    //================= TIMER =================//
+
+    TCCR0A = (1<<COM0A1)|(1<<WGM02)|(1<<WGM01)|(1<<WGM00);
+    TCCR0B = 1<<CS02;
+    TIMSK0 = 1<<TOIE0;
+    OCR0A = 255;
+
+
+    //================= BUTTON =================//
+
+    EICRB = 1 << ISC51 | 1<< ISC50;
+    EIMSK = 1 << INT5;
+
+
+
+    //================= LED =================//
+
+    DDRB = 0xff;
+    TCCR1A = (1<<WGM10) | (1<<COM1A1);
+    TCCR1B = (1<<CS11) | (1<<CS10);
+    OCR1A = 128-1;
+
+    DDRA = 0xff;
+    PORTA = 0x00;
+
+
     sei();
 
-    int x = 0;
-    while(1) {
-        x = (x+1)%100;
-        uart_transmit('0'+x);
-        _delay_ms(200);
 
-    }
+
+
+    while(true) { };
 }
+
+
+
